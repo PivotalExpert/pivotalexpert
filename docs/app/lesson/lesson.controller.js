@@ -8,9 +8,28 @@
 
     console.log("LessonController");
 
+    function showErrorDialog(msg) {
+      var confirm = $mdDialog.confirm()
+          .title('Error Loading Spreadsheet Challenge')
+          .textContent(msg)
+          .ok('Cancel');
+
+        $mdDialog.show(confirm).then(function() {
+            //auth user again
+            var user = firebase.auth().currentUser.getToken(true)
+            .then(function(idToken) {
+                gapi.auth.setToken({
+                    access_token: idToken
+                });
+            });
+            $location.path('course');
+        });
+    }
+    
 	var ref = firebase.database().ref();
     var user = firebase.auth().currentUser;
 	var chapter = $routeParams.chapter;
+    var bid = $routeParams.bid;
 	var qns = $routeParams.qns;
     var qid = $routeParams.qid;
 
@@ -24,13 +43,20 @@
           .ok('Next Challenge');
 
         $mdDialog.show(confirm).then(function() {
-            nextQns(chapter,qns,question);
+            //track users who have completed and/or revisit and recording timing
+            recordUserWhoCompletedOrRevisit().then(function(){
+              nextQns(chapter,qns,question);
+              navBarService.updateNavBar();
+            });
+
         });
     }
     //Load Question
     var question = $firebaseObject(ref.child('course/questions/' + qid));
     question.$loaded().then(function(){
         //update user last attempt
+        recordUserFirstLoadedTime();
+
         user = firebase.auth().currentUser;
         ref.child('userProfiles').child(user.uid).child('lastAttempt').set(qid);
 
@@ -38,7 +64,7 @@
         $scope.qnsTitle = question.qnsTitle;
 		$scope.qnsInstruction = question.qnsInstruction;
 		$scope.qnsDescription = question.qnsDescription;
-        $scope.qnsHint = question.hint;
+        
         var qnsType = question.qnsType;
 
         //Video type question
@@ -65,8 +91,8 @@
 
             function onYouTubePlayer() {
               player = new YT.Player('player', {
-                height: '390',
-                width: '640',
+                height: '150%',
+                width: '100%',  
                 videoId: question.link,
                 events: {
                   'onStateChange': onPlayerStateChange
@@ -85,14 +111,25 @@
 
         }
 
+        //IForm type question
+        if(qnsType == 'iframe'){
+            $scope.srclink = $sce.trustAsResourceUrl(question.link);
+        }
+
+
         //Google Form type question
         if(qnsType == 'form'){
             $scope.srclink = $sce.trustAsResourceUrl(question.link);
-            var iframeElem = document.getElementById('iframeId');
+            var initLoad = true;
 
-            $scope.$watch('srclink', function(newValue, oldValue) {
-              console.log("TESTING");
-            });
+            var iframeElem = document.getElementById('iframeId');
+            iframeElem.onload  = function(){
+                if(initLoad) {
+                    initLoad = false;
+                } else {
+                    showCompleteDialog("You have completed the Challenge, go for more!");
+                }
+            };
 
         }
         //Slides type question
@@ -117,10 +154,11 @@
             $scope.questions = question.mcq;
             $scope.currentScore = 0;
             $scope.totalScore = $scope.questions.length;
-
+            
             var mcq = question.mcq;
 
             $scope.currentMCQ = 1;
+            $scope.hint = question.mcq[0].hint;
             $scope.totalMCQ = mcq.length
             var answerKey = $firebaseObject(ref.child('answerKey/' + qid));
 
@@ -133,6 +171,7 @@
                         }else {
                             $scope.currentMCQ += changeBy;
                             $scope.mcq = mcq[$scope.currentMCQ - 1];
+                            $scope.hint = question.mcq[$scope.currentMCQ - 1].hint;
                         }
                     }else {
                         angular.forEach($scope.questions, function (qns, key) {
@@ -149,12 +188,12 @@
                               '</div>' +
                             '</md-toast>',
                             hideDelay: 3000
-                        });                            
-          
+                        });
+
                     }
                });
             }
-            
+
             //initial run
             $scope.mcq = mcq[0];
         }
@@ -214,10 +253,13 @@
             editor.setOption("minLines", 10);
 
             var userAch = $firebaseObject(ref.child('userProfiles').child(user.uid).child('courseProgress').child(qid));
+
             userAch.$loaded().then(function(){
-              if(userAch){
+              if(userAch.userAnswer){
+                  console.log(userAch.userAnswer);
                 editor.insert(userAch.userAnswer);
               }else{
+                   console.log("TESTING123");
                 //insert code to codebox from firebase
                 editor.insert(question.initialCode);
               }
@@ -239,13 +281,21 @@
 
         //Submit answer and go next qns if correct
         $scope.submit = function() {
+            //track active user
+            recordActiveUser();
+            //track attempts and record user start time if first attempt
+            recordUserAttempt();
+            //track user who attempted
+            recordUserWhoAttempted();
+
+
             $scope.checkingAns = true;
             //Load answer key of the question
             var answerKey = $firebaseObject(ref.child('answerKey/' + qid));
             answerKey.$loaded().then(function(){
 
                 //video and slides question type
-                if (qnsType == 'video' || qnsType == 'slides'){
+                if (qnsType == 'video' || qnsType == 'slides' || qnsType == 'iframe'){
                     showCompleteDialog("Time to applied what you have learnt!");
                 }
 
@@ -311,9 +361,11 @@
                                 $scope.codeResult.push(result);
                                 //When end of test case
                                 if($scope.codeResult.length === totalTestNum){
+                                    $scope.checkingAns = false;
                                     if ($scope.codeResult.indexOf(false) === -1) {
                                         showCompleteDialog("FANTASTIC!! You have completed the Challenge, go for more!");
                                     } else {
+
                                         $scope.incorrect = true;
                                         var hint = "";
                                         for (a = 0; a < $scope.hints.length ; a++){
@@ -371,7 +423,14 @@
                 deferred.resolve(sheetsToBeDelete);
             }
           }
-        });
+        }, function(response) {
+            var errorCode = response.result.error.code;
+            if (errorCode == 404) {
+                showErrorDialog("Could not find the spreadsheet. If this keep occur, manually delete the spreadsheet from firebase and re-login.");
+            } else {
+                showErrorDialog("Failed to load. Please try again. If this occur again, please logout and signin again." );
+            }
+          });
         return deferred.promise;
     }
 
@@ -417,7 +476,14 @@
           $scope.curSheet = response.result.sheetId;
           deferred.resolve(true);
 
-        });
+        }, function(response) {
+            var errorCode = response.result.error.code;
+            if (errorCode == 404) {
+                showErrorDialog("Could not find the spreadsheet. If this keep occur, manually delete the spreadsheet from firebase and re-login.");
+            } else {
+                showErrorDialog("Failed to load. Please try again. If this occur again, please logout and signin again." );
+            }
+          });
         return deferred.promise;
     }
 
@@ -492,6 +558,12 @@
               $scope.hints.push(test.hint);
             }
         };
+
+        ww.onerror = function() {
+          deferred.resolve(false);
+          $scope.hints.push("Please declare your variables and functions according to the instructions.");
+        }
+        
         return deferred.promise;
     }
 
@@ -506,6 +578,8 @@
 	}
 
     function nextQns(chapter, question, loadedQns){
+        //track user who completed and/or revisit
+        //recordUserWhoCompletedOrRevisit();
 
         //update course progress in firebase db
         var dateTimeNow = new Date().toLocaleString("en-US");
@@ -522,25 +596,22 @@
         chapter = parseInt(chapter) - 1;
         question = parseInt(question);
 
-        var courseSeq = $firebaseObject(ref.child('courseSequence'));
+        var courseSeq = $firebaseObject(ref.child('library').child(bid).child("sequence"));
         courseSeq.$loaded().then(function() {
             var nextQns = courseSeq[chapter].qns[question];
             if(nextQns) {
-				$location.path('/lesson/' + nextQns.qnsType + '/' + (chapter + 1) + '/' + (question + 1)+ '/' + nextQns.qid);
+				$location.path('/lesson/' + nextQns.qnsType + '/' + bid + '/' + (chapter + 1) + '/' + (question + 1)+ '/' + nextQns.qid);
 			} else {
 				//Complete current chapter, go to next chapter
 				nextQns = courseSeq[chapter+1];
 				if(nextQns && courseSeq[chapter+1].qns) {
                     nextQns = courseSeq[chapter+1].qns[0];
-					$location.path('/lesson/' + nextQns.qnsType + '/' + (chapter + 2) + '/1/'+ nextQns.qid );
+					$location.path('/lesson/' + nextQns.qnsType + '/' + bid + '/' + (chapter + 2) + '/1/'+ nextQns.qid );
 				} else {
 					//update last attemp in firebase db
 					ref.child('userProfiles').child(user.uid).child('lastAttempt').set("completed");
 					//Complete whole course
-					var userRef = $firebaseObject(ref.child('auth/users/' + user.uid));
-					userRef.$loaded().then(function(){
-						$location.path('/profile/' + userRef.profileLink);
-					});
+					$location.path('/course/');
 				}
 			}
 
@@ -578,6 +649,130 @@
             "Z" : 26,
         }
         return mapping[col.toUpperCase()]
+    }
+
+    function recordActiveUser() {
+        var preDateNow = new Date().toLocaleString("en-US");
+        preDateNow = preDateNow.substring(0,preDateNow.indexOf(','));
+        var preDateNow2 = preDateNow.replace('\/','');
+        var dateNow = preDateNow2.replace('\/','');
+        var activeUserAnalyticsRef = ref.child('analytics').child('activeUser').child(dateNow);
+        var record = {};
+        record[user.uid] = true;
+        activeUserAnalyticsRef.update(record);
+    }
+
+    function recordUserAttempt() {
+        var userAttemptRef = ref.child('analytics').child('challengeStats').child(qid);
+        var userAttempt = $firebaseObject(userAttemptRef);
+        userAttempt.$loaded().then(function(){
+          var count;
+          if(userAttempt.totalAttempts){
+            count = userAttempt.totalAttempts + 1;
+          }else{
+            count = 1;
+          }
+          userAttemptRef.update({totalAttempts:count});
+        });
+    }
+
+    function recordUserFirstLoadedTime(){
+      var challengeRecordRef = ref.child('analytics').child('challengeStats').child(qid);
+      var challengeRecord = $firebaseObject(challengeRecordRef);
+      var userChallengeTimeRecordRef = ref.child('analytics').child('challengeStats').child(qid).child('userTimings');
+
+      challengeRecord.$loaded().then(function(){
+        var userId = user.uid;
+        if(challengeRecord.userAttemptedRecords){
+          if(!challengeRecord.userAttemptedRecords.hasOwnProperty(userId)){
+            var record = {};
+            var dateTimeAttempted = new Date().toLocaleString("en-US");
+            record[userId] = {startTime:dateTimeAttempted};
+            userChallengeTimeRecordRef.update(record);
+          }
+        }else{
+          var record = {};
+          var dateTimeAttempted = new Date().toLocaleString("en-US");
+          record[userId] = {startTime:dateTimeAttempted};
+          userChallengeTimeRecordRef.update(record);
+        }
+      });
+
+    }
+
+    function recordUserWhoAttempted() {
+        var userAttemptedRecordRef = ref.child('analytics').child('challengeStats').child(qid).child('userAttemptedRecords');
+
+        var record = {};
+        record[user.uid] = true;
+        userAttemptedRecordRef.update(record);
+    }
+
+    /*function recordUserWhoCompleted() {
+        var userCompletedRecordRef = ref.child('analytics').child('challengeStats').child(qid).child('userCompletedRecords');
+        var record = {};
+        record[user.uid] = true;
+        userCompletedRecordRef.update(record);
+    }*/
+
+    function recordUserWhoCompletedOrRevisit() {
+        var q = $q.defer();
+        var challengeRecordRef = ref.child('analytics').child('challengeStats').child(qid);
+        var userCompletedRecordRef = ref.child('analytics').child('challengeStats').child(qid).child('userCompletedRecords');
+        var userChallengeTimeRecordRef = ref.child('analytics').child('challengeStats').child(qid).child('userTimings').child(user.uid);
+        var challengeRecord = $firebaseObject(challengeRecordRef);
+
+        challengeRecord.$loaded().then(function(){
+          var userId = user.uid;
+
+          if(challengeRecord.userCompletedRecords){
+            if(challengeRecord.userCompletedRecords[userId]){
+              var revisitCount = challengeRecord.revisitRecords;
+              if(revisitCount){
+                revisitCount += 1;
+              }else{
+                revisitCount = 1;
+              }
+            challengeRecordRef.update({revisitRecords:revisitCount});
+            }else{
+              var record = {};
+              record[user.uid] = true;
+              userCompletedRecordRef.update(record);
+              var firstEndDateTime = new Date();
+              var firstEndDateTimeString = firstEndDateTime.toLocaleString("en-US");
+              userChallengeTimeRecordRef.update({endTime:firstEndDateTimeString});
+              var startTime = new Date(challengeRecord.userTimings[userId].startTime);
+              var difference = firstEndDateTime.getTime() - startTime.getTime();
+              if(challengeRecord.averageTime){
+                var averageTime = challengeRecord.averageTime;
+                var totalUsersCompleted = Object.keys(challengeRecord.userCompletedRecords).length;
+                var newAverageTime = (averageTime * (totalUsersCompleted - 1) + difference)/totalUsersCompleted;
+                challengeRecordRef.update({averageTime:newAverageTime});
+              }else{
+                challengeRecordRef.update({averageTime:difference});
+              }
+            }
+          }else{
+            var record = {};
+            record[user.uid] = true;
+            userCompletedRecordRef.update(record);
+            var firstEndDateTime = new Date();
+            var firstEndDateTimeString = firstEndDateTime.toLocaleString("en-US");
+            userChallengeTimeRecordRef.update({endTime:firstEndDateTimeString});
+            var startTime = new Date(challengeRecord.userTimings[userId].startTime);
+            var difference = firstEndDateTime.getTime() - startTime.getTime();
+            if(challengeRecord.averageTime){
+              var averageTime = challengeRecord.averageTime;
+              var totalUsersCompleted = Object.keys(challengeRecord.userCompletedRecords).length;
+              var newAverageTime = (averageTime * (totalUsersCompleted - 1) + difference)/totalUsersCompleted;
+              challengeRecordRef.update({averageTime:newAverageTime});
+            }else{
+              challengeRecordRef.update({averageTime:difference});
+            }
+          }
+          q.resolve(true);
+        });
+        return q.promise;
     }
 
   };
