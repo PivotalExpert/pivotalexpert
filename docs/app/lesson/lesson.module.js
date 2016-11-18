@@ -3,7 +3,7 @@
   angular
     .module('app.lesson', [])
     .config(configFunction);
-  
+
   function configFunction($routeProvider) {
     $routeProvider.
 	when('/lesson/mcq/:bid/:chapter/:qns/:qid', {
@@ -35,5 +35,5 @@
     controller: 'LessonController'
     });
   }
-  
+
 })();

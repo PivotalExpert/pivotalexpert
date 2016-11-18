@@ -271,7 +271,7 @@
                     for(var element in questionNode) {
                         if(element.qnsTitle === question.qnsTitle) {
                             //response this chapter is being used now.
-                            return "This Question Title is being used now.";
+                            return "This Challenge Title has been used.";
                         }
                     }
                 }
@@ -327,9 +327,9 @@
                                         courseArray.$save(chapIndex).then(function(){
                                             q.resolve(true);
                                             if(isNewQuestion) {
-                                                return "Question created!"
+                                                return "Challenge created!"
                                             }else {
-                                                return "Question updated!"
+                                                return "Challenge updated!"
                                             }
                                         });
                                 }
@@ -347,9 +347,9 @@
                                 courseArray.$save(chapIndex).then(function(){
                                     q.resolve(true);
                                     if(isNewQuestion) {
-                                        return "Question created!"
+                                        return "Challenge created!"
                                     }else {
-                                        return "Question updated!"
+                                        return "Challenge updated!"
                                     }
                                 });
                             }
@@ -374,7 +374,7 @@
                     for(var element in questionNode) {
                         if(element.qnsTitle === question.qnsTitle) {
                             //response this chapter is being used now.
-                            return "This Question Title is being used now.";
+                            return "This Challenge Title has been used.";
                         }
                     }
                 }
@@ -417,9 +417,9 @@
                                         courseArray.$save(chapIndex).then(function(){
                                             q.resolve(true);
                                             if(isNewQuestion) {
-                                                return "Question created!"
+                                                return "Challenge created!"
                                             }else {
-                                                return "Question updated!"
+                                                return "Challenge updated!"
                                             }
                                         });
                                 }
@@ -437,9 +437,9 @@
                                 courseArray.$save(chapIndex).then(function(){
                                     q.resolve(true);
                                     if(isNewQuestion) {
-                                        return "Question created!"
+                                        return "Challenge created!"
                                     }else {
-                                        return "Question updated!"
+                                        return "Challenge updated!"
                                     }
                                 });
                             }
@@ -464,7 +464,7 @@
                     for(var element in questionNode) {
                         if(element.qnsTitle === question.qnsTitle) {
                             //response this chapter is being used now.
-                            return "This Question Title is being used now.";
+                            return "This Challenge Title has been used.";
                         }
                     }
 
@@ -506,9 +506,9 @@
                                         courseArray.$save(chapIndex).then(function(){
                                             q.resolve(true);
                                             if(isNewQuestion) {
-                                                return "Question created!"
+                                                return "Challenge created!"
                                             }else {
-                                                return "Question updated!"
+                                                return "Challenge updated!"
                                             }
                                         });
                                 }
@@ -526,9 +526,9 @@
                                 courseArray.$save(chapIndex).then(function(){
                                     q.resolve(true);
                                     if(isNewQuestion) {
-                                        return "Question created!"
+                                        return "Challenge created!"
                                     }else {
-                                        return "Question updated!"
+                                        return "Challenge updated!"
                                     }
                                 });
                             }
@@ -709,7 +709,7 @@
                     for(var element in questionNode) {
                         if(element.qnsTitle === question.qnsTitle) {
                             //response this chapter is being used now.
-                            return "This Question Title is being used now.";
+                            return "This Challenge Title has been used.";
                         }
                     }
 
@@ -755,9 +755,9 @@
                                     courseArray.$save(chapIndex).then(function(){
                                         q.resolve(true);
                                         if(isNewQuestion) {
-                                            return "Question created!"
+                                            return "Challenge created!"
                                         }else {
-                                            return "Question updated!"
+                                            return "Challenge updated!"
                                         }
 
                                     });
@@ -850,7 +850,7 @@
                         console.log("ERROR CAUGHT: "+ reason)
                     });
                 } else {
-                    q.resolve("This Question Title is being used now.");
+                    q.resolve("This Challenge Title has been used.");
                 }
             });
             return q.promise;
@@ -1016,20 +1016,21 @@
         }
 
         function copySpreadsheetQns(accessToken, IDCopyFrom, sheetID, IDCopyTo) {
-            var discoveryUrl = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
-            var deferred = $q.defer();
-            gapi.client.load(discoveryUrl).then(function() {
-              gapi.client.sheets.spreadsheets.sheets.copyTo({
-                spreadsheetId: IDCopyFrom,
-                sheetId: sheetID,
-                destinationSpreadsheetId: IDCopyTo,
-              }).then(function(response) {
-                var title = response.result.title.substring(8);
-                deferred.resolve(response.result.sheetId);
-                updateSheetTitle(IDCopyTo, title, response.result.sheetId);
-              });
-            });
-            return deferred.promise;
+
+          var deferred = $q.defer();
+
+          gapi.client.sheets.spreadsheets.sheets.copyTo({
+            spreadsheetId: IDCopyFrom,
+            sheetId: sheetID,
+            destinationSpreadsheetId: IDCopyTo,
+          }).then(function(response) {
+            var title = response.result.title.substring(8);
+            deferred.resolve(response.result.sheetId);
+            updateSheetTitle(IDCopyTo, title, response.result.sheetId);
+          }, function(response) {
+            deferred.resolve(-1);
+          });
+          return deferred.promise;
         }
 
         function updateSheetTitle(spreadsheetID, titleName, sheetID) {

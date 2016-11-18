@@ -25,7 +25,7 @@
             $location.path('course');
         });
     }
-    
+
 	var ref = firebase.database().ref();
     var user = firebase.auth().currentUser;
 	var chapter = $routeParams.chapter;
@@ -64,7 +64,7 @@
         $scope.qnsTitle = question.qnsTitle;
 		$scope.qnsInstruction = question.qnsInstruction;
 		$scope.qnsDescription = question.qnsDescription;
-        
+
         var qnsType = question.qnsType;
 
         //Video type question
@@ -92,7 +92,7 @@
             function onYouTubePlayer() {
               player = new YT.Player('player', {
                 height: '150%',
-                width: '100%',  
+                width: '100%',
                 videoId: question.link,
                 events: {
                   'onStateChange': onPlayerStateChange
@@ -154,7 +154,7 @@
             $scope.questions = question.mcq;
             $scope.currentScore = 0;
             $scope.totalScore = $scope.questions.length;
-            
+
             var mcq = question.mcq;
 
             $scope.currentMCQ = 1;
@@ -563,7 +563,7 @@
           deferred.resolve(false);
           $scope.hints.push("Please declare your variables and functions according to the instructions.");
         }
-        
+
         return deferred.promise;
     }
 

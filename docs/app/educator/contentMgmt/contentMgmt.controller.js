@@ -121,8 +121,8 @@
     });
 
 
-  function ContentMgmtController($http, $scope, $rootScope, $sce, $routeParams, $location, $firebaseArray, $mdDialog, $firebaseObject, commonService, contentMgmtService, $timeout, $q) {
-
+  function ContentMgmtController($http, $scope, $rootScope, $sce, $routeParams, $location, $firebaseArray, $mdDialog, $firebaseObject,navBarService, commonService, contentMgmtService, $timeout, $q) {
+    navBarService.updateNavBar();
     console.log("ContentMgmtController");
 
     function showErrorDialog(msg) {
@@ -294,8 +294,8 @@
 
     $scope.saveQns = function (ev) {
       var confirm = $mdDialog.confirm()
-        .title('Would you want to save all changes?')
-        .textContent('This challenge will be saved to what you configured, is it ok to proceed?')
+        .title('Would you like to save all changes?')
+        .textContent('This challenge will be saved to what you have configured, is it ok to proceed?')
         .targetEvent(ev)
         .ok('Please do it!')
         .cancel('Cancel!');
@@ -369,7 +369,7 @@
         // Appending dialog to document.body to cover sidenav in docs app
         var confirm = $mdDialog.confirm()
           .title('Would you want to save all changes?')
-          .textContent('This question will be saved to what you configured, is it ok to proceed?')
+          .textContent('This challenge will be saved to what you have configured, is it ok to proceed?')
           .targetEvent(ev)
           .ok('Please do it!')
           .cancel('Cancel!');
@@ -377,7 +377,7 @@
       $mdDialog.show(confirm).then(function () {
         var listToUpdate = [];
         var qids = $("#mcq").find('strong');
-        // updating the question sequence
+        // updating the challenge sequence
         for (i = 0; i < qids.length; i++) {
           var qid = qids[i].innerText.replace('.', '');
           $.each(mcqList, function (index, value) {
@@ -389,7 +389,7 @@
         }
         $scope.qns.mcq = listToUpdate;
 
-        contentMgmtService.updateMCQ($scope.qns, $scope.isNewQuestion).then(function () {
+        contentMgmtService.updateMCQ($scope.qns, $scope.isNewchallenge).then(function () {
           window.location.href = "#/educator/bookMap/" + contentMgmtService.getBookID();
           commonService.showSimpleToast("MCQ Challenge Added/Updated.");
         });
@@ -435,7 +435,7 @@
       $mdDialog.show(confirm).then(function () {
         contentMgmtService.deleteQuestion(cid, qid).then(function () {
           window.location.href = "#/educator/bookMap/" + contentMgmtService.getBookID();
-          commonService.showSimpleToast("Question deleted.");
+          commonService.showSimpleToast("Challenge deleted.");
           //window.location.reload();
         });
       }, function () {
@@ -445,8 +445,8 @@
 
     $scope.deleteChap = function (ev, cid) {
       var confirm = $mdDialog.confirm()
-        .title('Do you really want to DELETE this question?')
-        .textContent('This question will deleted, is it ok to proceed?')
+        .title('Do you really want to DELETE this challenge?')
+        .textContent('This challenge will deleted, is it ok to proceed?')
         .targetEvent(ev)
         .ok('Delete it now!')
         .cancel('Cancel');
@@ -522,7 +522,7 @@
       });
     }
 
-    // ADDITION PART for excel
+    // ADDITION PART for spreadsheet
     //Add more value answer
     $scope.addValidation = function () {
       $scope.qns.testcases.push({ cellToChange: "", changedTo: "", expectCell: "", toEqual: "", msg: "" });
@@ -547,7 +547,7 @@
         contentMgmtService.updateExcel($scope.qns, $scope.isNewQuestion).then(function (result) {
           if (result) {
             gapi.client.load(discoveryUrl).then(updateSheetTitle);
-            commonService.showSimpleToast("Excel Challenge Added/Updated.");
+            commonService.showSimpleToast("Spreadsheet Challenge Added/Updated.");
           } else {
             commonService.showSimpleToast(" Added/Updated Failed! This Challenge Title had been used.");
           }
@@ -566,7 +566,7 @@
         var sheetID = null;
         for (i = 0; i < sheets.length; i++) {
           var sheetTitle = sheets[i].properties.title;
-          if (sheetTitle === "New Question Created") {
+          if (sheetTitle === "New challenge Created") {
             sheetID = sheets[i].properties.sheetId;
             deferred.resolve(sheetID);
           }
@@ -616,7 +616,7 @@
           {
             addSheet: {
               properties: {
-                title: "New Question Created",
+                title: "New challenge Created",
               }
             }
           }
@@ -649,7 +649,9 @@
 
   }
 
-  function CourseMapController($timeout, $http, $rootScope, $scope, $routeParams, $mdDialog, $location, $firebaseObject, contentMgmtService, $q) {
+  function CourseMapController($timeout, $http, $rootScope, $scope, $routeParams, $mdDialog, $location, $firebaseObject,navBarService, contentMgmtService, $q) {
+
+    navBarService.updateNavBar();
     $scope.chapTBD = [];
     $scope.qnsTBD = [];
     $scope.chapters = [];
@@ -683,13 +685,13 @@
       });
     });
 
-
     courseMap.$loaded().then(function () {
       var seq = [];
       for (i = 0; i < courseMap.length; i++) {
         seq.push(courseMap[i]);
         $scope.chapters.push({ cid: courseMap[i].cid, chapterTitle: courseMap[i].chapterTitle });
       }
+      $scope.hideLoading = true;
       $scope.courseMap = seq;
     });
 
@@ -711,7 +713,7 @@
         ' <h3>Export options:</h3><br>' +
         '  <md-dialog-content>' +
         '  <md-input-container style="width:500px;height:auto;">' +
-        '    <label>Please select Chapter to put question in.</label> ' +
+        '    <label>Please select Chapter to put challenge in.</label> ' +
         '    <md-select ng-model="selectedChapter" name="chapter" required>' +
         '      <md-option ng-repeat="item in chapters" value="{{item.cid}}">' +
         '       {{item.chapterTitle}}' +
@@ -887,27 +889,38 @@
                   var question = JsonObj.course.questions;
                   var chapter = JsonObj.course.chapters;
                   var spreadsheetID = JsonObj.spreadsheetID;
+                  var numOfQns = 0;
                   var cid = "";
 
-                  contentMgmtService.getAdminSpreadsheetID().then(function (userSpreadsheetID) {
-                    //Add to course chapter
-                    angular.forEach(chapter, function (chap, key) {
-                      var chapRef = chapterRef.push(chap);
-                      cid = chapRef.key;
-                      ref.child('/course/chapters/' + cid).update({ helpRoomCode: cid });
-                    });
+                  angular.forEach(question, function (qns, key) {
+                    numOfQns++;
+                  });
 
-                    importQuestions(question, spreadsheetID, userSpreadsheetID, answer).then(function (qnsList) {
-
-                      sequence.cid = cid;
-                      sequence.qns = qnsList;
-                      // Add to sequence
-                      sequenceRef.once("value", function (snapshot) {
-                        sequenceRef.child(snapshot.numChildren()).set(sequence);
-                        window.location.reload();
+                  var discoveryUrl = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
+                  gapi.client.load(discoveryUrl).then(function() {
+                    contentMgmtService.getAdminSpreadsheetID().then(function (userSpreadsheetID) {
+                      //Add to course chapter
+                      angular.forEach(chapter, function (chap, key) {
+                        var chapRef = chapterRef.push(chap);
+                        cid = chapRef.key;
+                        ref.child('/course/chapters/' + cid).update({ helpRoomCode: cid });
                       });
-                    });
 
+                      importQuestions(question, spreadsheetID, userSpreadsheetID, answer).then(function (qnsList) {
+
+                        sequence.cid = cid;
+                        sequence.qns = qnsList;
+
+                        if(qnsList.length == numOfQns) {
+                          // Add to sequence
+                          sequenceRef.once("value", function (snapshot) {
+                            sequenceRef.child(snapshot.numChildren()).set(sequence);
+                            window.location.reload();
+                          });
+                        }
+                      });
+
+                    });
                   });
                 } catch (err) {
                   $scope.fileError = "Please upload file in correct JSON format.";
@@ -921,42 +934,38 @@
               var qnsList = [];
               var totalQnsCount = 0;
               var currentQnsCount = 0
-              //Add to course Question
               angular.forEach(question, function (qns, key) {
                 totalQnsCount++;
+              });
+              //Add to course Question
+              angular.forEach(question, function (qns, key) {
+                var qnsRef = questionRef.push(qns);
+                var qid = qnsRef.key;
+                if (answer && answer[key]) {
+                  ref.child('/answerKey/' + qid).set(answer[key]);
+                }
                 //if excel qns
                 if (qns.qnsType == 'excel') {
                   contentMgmtService.copySpreadsheetQns($scope.accessToken, spreadsheetID, qns.sheetID, userSpreadsheetID).then(function (response) {
-
                     qns.sheetID = response;
-                    var qnsRef = questionRef.push(qns);
-                    var qid = qnsRef.key;
-                    if (answer[key]) {
-                      ref.child('/answerKey/' + qid).set(answer[key]);
-                    }
                     qnsList.push({ qid: qid, qnsTitle: qns.qnsTitle, qnsType: qns.qnsType });
-                    currentQnsCount++;
-                    if (currentQnsCount == totalQnsCount) {
+                    if(response) {
+                      currentQnsCount++;
+                    }
+                    if (currentQnsCount === totalQnsCount) {
                       q.resolve(qnsList);
                     }
                   });
                 } else {
                   currentQnsCount++;
-                  var qnsRef = questionRef.push(qns);
-                  var qid = qnsRef.key;
-                  if (answer && answer[key]) {
-                    ref.child('/answerKey/' + qid).set(answer[key]);
-                  }
                   qnsList.push({ qid: qid, qnsTitle: qns.qnsTitle, qnsType: qns.qnsType });
-                  if (currentQnsCount == totalQnsCount) {
+                  if (currentQnsCount === totalQnsCount) {
                     q.resolve(qnsList);
                   }
                 }
               });
-
               return q.promise;
             }
-
             // Read in the image file as a data URL.
             reader.readAsText(file);
           } else {
@@ -1227,8 +1236,6 @@
 
         $scope.nextStep = function () {
           var ref = firebase.database().ref();
-
-
           //Update to library
           var bookRef = ref.child('library/' + bid + '/sequence/' + id);
           bookRef.update({chapterTitle : $scope.chptTitle});
@@ -1244,8 +1251,8 @@
 
   }
 
-  function BookController($timeout, $http, $scope, $rootScope, $routeParams, $mdDialog, $location, $firebaseObject,$window,commonService, contentMgmtService) {
-
+  function BookController($timeout, $http, $scope, $rootScope, $routeParams, $mdDialog, $location, $firebaseObject,$window,navBarService,commonService, contentMgmtService) {
+    navBarService.updateNavBar();
     $scope.library = [];
     // get library to display
     var library = contentMgmtService.getLibrary();
@@ -1253,6 +1260,7 @@
       for (i = 0; i < library.length; i++) {
         $scope.library.push({ bid: library[i].$id, bookTitle: library[i].bookTitle, bookDescription: library[i].bookDescription });
       }
+      $scope.hideLoading = true;
     });
 
     $scope.saveBooksOrder = function(ev) {
@@ -1659,7 +1667,6 @@
             // Closure to capture the file information.
             reader.onload = (function (theFile) {
               return function (e) {
-                // try {
                 $scope.loading = true;
                 importCourse(e).then(function () {
                   $timeout(function () { window.location.reload(); }, 1000);
@@ -1685,21 +1692,23 @@
           var question = JsonObj.course.questions;
           var chapter = JsonObj.course.chapters;
           var spreadsheetID = JsonObj.spreadsheetID;
+          var discoveryUrl = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
+          gapi.client.load(discoveryUrl).then(function() {
+            angular.forEach(book, function (bookContent, bookID) {
 
-          angular.forEach(book, function (bookContent, bookID) {
+              nbook.bookDescription = bookContent.bookDescription;
+              nbook.bookTitle = bookContent.bookTitle;
+              var sequences = bookContent.sequence;
 
-            nbook.bookDescription = bookContent.bookDescription;
-            nbook.bookTitle = bookContent.bookTitle;
-            var sequences = bookContent.sequence;
+              importSequence(sequences, answer, question, chapter, spreadsheetID).then(function (seqList) {
+                nbook.sequence = seqList;
 
-            importSequence(sequences, answer, question, chapter, spreadsheetID).then(function (seqList) {
-              nbook.sequence = seqList;
+                // Add to firebase
+                libraryRef.push(nbook);
+                q.resolve(true);
+              });
 
-              // Add to firebase
-              libraryRef.push(nbook);
-              q.resolve(true);
             });
-
           });
           return q.promise;
         }
@@ -1738,15 +1747,20 @@
 
         function importQuestions(sequenceQns, questionList, spreadsheetID, userSpreadsheetID, answer) {
           var q = $q.defer();
-          var totalQnsCount = 0;
+
           var currentQnsCount = 0;
           var qnsList = [];
 
           if (sequenceQns) {
             angular.forEach(sequenceQns, function (seqQns, seqKey) {
+              var totalQnsCount = 0;
               angular.forEach(questionList, function (qns, qnsKey) {
                 if (seqQns.qid == qnsKey) {
-                  totalQnsCount++
+                  totalQnsCount++;
+                }
+              });
+              angular.forEach(questionList, function (qns, qnsKey) {
+                if (seqQns.qid == qnsKey) {
                   importQuestion(qns, spreadsheetID, userSpreadsheetID, answer).then(function (nQns) {
                     var qnsRef = questionRef.push(nQns);
                     var qid = qnsRef.key;
@@ -1771,7 +1785,7 @@
         function importQuestion(qns, spreadsheetID, userSpreadsheetID, answer) {
           var q = $q.defer();
 
-          //if excel qns
+          //if spreadsheet qns
           if (qns.qnsType == 'excel' && spreadsheetID != -1 && userSpreadsheetID != -1) {
             contentMgmtService.copySpreadsheetQns($scope.accessToken, spreadsheetID, qns.sheetID, userSpreadsheetID).then(function (response) {
               qns.sheetID = response;
@@ -1782,8 +1796,6 @@
           }
           return q.promise;
         }
-
-
       }
     };
   }
