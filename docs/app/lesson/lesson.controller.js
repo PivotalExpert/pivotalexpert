@@ -26,16 +26,17 @@
         });
     }
 
-	var ref = firebase.database().ref();
+    var ref = firebase.database().ref();
     var user = firebase.auth().currentUser;
-	var chapter = $routeParams.chapter;
+    var chapter = $routeParams.chapter;
     var bid = $routeParams.bid;
-	var qns = $routeParams.qns;
+    var qns = $routeParams.qns;
     var qid = $routeParams.qid;
 
-	navBarService.updateNavBar();
+  	navBarService.updateNavBar();
 
-	$scope.answer = "";
+  	$scope.answer = "";
+
     function showCompleteDialog(msg) {
       var confirm = $mdDialog.confirm()
           .title('Challenge Completed!')
@@ -61,9 +62,9 @@
         ref.child('userProfiles').child(user.uid).child('lastAttempt').set(qid);
 
         //retrieve qns details
-        $scope.qnsTitle = question.qnsTitle;
-		$scope.qnsInstruction = question.qnsInstruction;
-		$scope.qnsDescription = question.qnsDescription;
+        $scope.qnsTitle = "Chapter " + chapter + "." + qns + ": " + question.qnsTitle;
+      	$scope.qnsInstruction = question.qnsInstruction;
+      	$scope.qnsDescription = question.qnsDescription;
 
         var qnsType = question.qnsType;
 
@@ -265,8 +266,6 @@
               }
             });
 
-
-
             /* Bind to commands
             editor.commands.addCommand({
                 name: 'myCommand',
@@ -334,6 +333,7 @@
                                 $scope.incorrect = true;
                                 $scope.checkingAns = false;
                             }
+                            $scope.checkingAns = false;
                         });
                     });
                 }
@@ -381,6 +381,7 @@
                     } else {
                         $scope.incorrect = true;
                         $scope.errMsg = "Error with the syntax. Please check your answer again."
+                        $scope.checkingAns = false;
                     }
                 }
             });
@@ -568,14 +569,14 @@
     }
 
     function getInlineJSandTest (test, code,functionCode) {
-		var top = 'onmessage = function(msg){';
-		var bottom = 'postMessage(result);};';
-    var newTest = "var result = " + test.expect + " == " + test.toEqual +";";
-		var all = functionCode + code +"\n\n"+top+"\n"+newTest+"\n"+bottom+"\n"
-    console.log(all);
-		var blob = new Blob([all], {"type": "text\/plain"});
-		return URL.createObjectURL(blob);
-	}
+  		var top = 'onmessage = function(msg){';
+  		var bottom = 'postMessage(result);};';
+      var newTest = "var result = " + test.expect + " == " + test.toEqual +";";
+  		var all = functionCode + code +"\n\n"+top+"\n"+newTest+"\n"+bottom+"\n"
+      console.log(all);
+  		var blob = new Blob([all], {"type": "text\/plain"});
+  		return URL.createObjectURL(blob);
+  	}
 
     function nextQns(chapter, question, loadedQns){
         //track user who completed and/or revisit
@@ -616,6 +617,11 @@
 			}
 
         });
+    }
+
+    //Function for back button, to go back to the coursemap
+    $scope.back = function() {
+      	$location.path('/course/' + bid);
     }
 
     //map the col alphabet to number
@@ -737,7 +743,6 @@
             }else{
               var record = {};
               record[user.uid] = true;
-              userCompletedRecordRef.update(record);
               var firstEndDateTime = new Date();
               var firstEndDateTimeString = firstEndDateTime.toLocaleString("en-US");
               userChallengeTimeRecordRef.update({endTime:firstEndDateTimeString});
@@ -751,11 +756,11 @@
               }else{
                 challengeRecordRef.update({averageTime:difference});
               }
+              userCompletedRecordRef.update(record);
             }
           }else{
             var record = {};
             record[user.uid] = true;
-            userCompletedRecordRef.update(record);
             var firstEndDateTime = new Date();
             var firstEndDateTimeString = firstEndDateTime.toLocaleString("en-US");
             userChallengeTimeRecordRef.update({endTime:firstEndDateTimeString});
@@ -769,6 +774,7 @@
             }else{
               challengeRecordRef.update({averageTime:difference});
             }
+            userCompletedRecordRef.update(record);
           }
           q.resolve(true);
         });
